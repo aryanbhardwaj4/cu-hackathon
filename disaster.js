@@ -464,8 +464,8 @@ export default function DisasterNavigationApp() {
 
         <View onLayout={(event) => { reportsOffset.current = event.nativeEvent.layout.y; }}>
         <SectionTitle
-          eyebrow="COMMUNITY SIGNAL"
-          title="Nearby reports"
+          eyebrow="SESSION HAZARDS"
+          title="Reports on this device"
           right={<Text style={styles.reportCount}>{hazards.length} REPORTS</Text>}
         />
         {hazards.slice(0, 3).map((hazard, index) => (
@@ -519,7 +519,7 @@ export default function DisasterNavigationApp() {
           >
             <Text style={styles.reportButtonIcon}>+</Text>
             <Text style={styles.reportButtonText}>REPORT A HAZARD</Text>
-            <Text style={styles.reportButtonSubtext}>QUICK · ANONYMOUS · OFFLINE-READY</Text>
+            <Text style={styles.reportButtonSubtext}>QUICK · SESSION ONLY · NOT SHARED</Text>
           </Pressable>
         )}
         </View>
