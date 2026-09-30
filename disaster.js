@@ -16,6 +16,15 @@ const MODES = {
     color: '#62D6A6',
     battery: '82%',
     instruction: 'Live conditions checked just now',
+    background: '#09120F',
+    surface: '#142019',
+    border: '#294337',
+    accentSoft: '#19372B',
+    hero: 'Your route. In real time.',
+    subtitle: 'Live conditions are available. Stay alert and follow local guidance.',
+    alertTitle: 'LIVE FLOOD ADVISORY · DEMO',
+    alertDetail: 'Water rising near 6th Avenue. A safer route is ready.',
+    mapLabel: 'LIVE MAP · SAMPLE DATA',
   },
   degraded: {
     label: 'LOW BANDWIDTH',
@@ -23,6 +32,15 @@ const MODES = {
     color: '#F3B95F',
     battery: '24%',
     instruction: 'Offline route ready · last synced 4 min ago',
+    background: '#151109',
+    surface: '#211A0F',
+    border: '#493922',
+    accentSoft: '#392B15',
+    hero: 'Your route. Still offline.',
+    subtitle: 'Bandwidth is fading. Heavy layers are off; your local route remains.',
+    alertTitle: 'NETWORK IS DEGRADED',
+    alertDetail: 'Live updates paused. Last saved route is ready to follow.',
+    mapLabel: 'LOW-DATA VECTOR · CACHED',
   },
   survival: {
     label: 'SURVIVAL MODE',
@@ -30,6 +48,15 @@ const MODES = {
     color: '#FF716B',
     battery: '14%',
     instruction: 'Map and camera paused to preserve battery',
+    background: '#080A0D',
+    surface: '#141416',
+    border: '#3B2728',
+    accentSoft: '#3A1F20',
+    hero: 'Keep moving.',
+    subtitle: 'Text directions only. Screen and GPS are in low-power mode.',
+    alertTitle: 'NO SIGNAL · BATTERY CRITICAL',
+    alertDetail: 'Follow your last saved route. Avoid 6th Avenue.',
+    mapLabel: 'TEXT-ONLY NAVIGATION',
   },
 };
 
@@ -66,11 +93,11 @@ function SectionTitle({ eyebrow, title, right }) {
   );
 }
 
-function MapPreview({ mode, hazards, cached }) {
+function MapPreview({ mode, hazards, cached, status }) {
   return (
-    <View style={[styles.map, mode === 'degraded' && styles.mapLowPower]}>
-      <View style={styles.mapGridHorizontal} />
-      <View style={styles.mapGridVertical} />
+    <View style={[styles.map, { backgroundColor: status.background, borderColor: status.border }]}>
+      <View style={[styles.mapGridHorizontal, mode === 'degraded' && styles.mapGridMuted]} />
+      <View style={[styles.mapGridVertical, mode === 'degraded' && styles.mapGridMuted]} />
       <View style={[styles.park, { top: 16, left: 18 }]}>
         <Text style={styles.parkLabel}>RIVERSIDE PARK</Text>
       </View>
@@ -86,12 +113,12 @@ function MapPreview({ mode, hazards, cached }) {
       <Text style={[styles.mapLabel, { top: 164, left: 22 }]}>MARKET ST</Text>
       <Text style={[styles.mapLabel, { top: 63, right: 14 }]}>5TH AVE</Text>
       <Text style={[styles.mapLabel, { top: 165, right: 14 }]}>6TH AVE</Text>
-      <View style={styles.routeSegmentOne} />
-      <View style={styles.routeSegmentTwo} />
-      <View style={styles.routeSegmentThree} />
-      <View style={styles.routeSegmentFour} />
-      <View style={styles.currentLocation}>
-        <View style={styles.currentLocationCore} />
+      <View style={[styles.routeSegmentOne, { backgroundColor: status.color }]} />
+      <View style={[styles.routeSegmentTwo, { backgroundColor: status.color }]} />
+      <View style={[styles.routeSegmentThree, { backgroundColor: status.color }]} />
+      <View style={[styles.routeSegmentFour, { backgroundColor: status.color }]} />
+      <View style={[styles.currentLocation, { backgroundColor: `${status.color}33`, borderColor: status.color }]}>
+        <View style={[styles.currentLocationCore, { backgroundColor: status.color }]} />
       </View>
       <View style={styles.shelterMarker}>
         <Text style={styles.shelterMarkerText}>+</Text>
@@ -103,7 +130,7 @@ function MapPreview({ mode, hazards, cached }) {
       )}
       <View style={styles.mapTopTag}>
         <View style={[styles.pillDot, { backgroundColor: cached ? '#62D6A6' : '#F3B95F' }]} />
-        <Text style={styles.mapTopTagText}>{cached ? 'DEMO MAP READY' : 'DEMO MAP NOT SAVED'}</Text>
+        <Text style={styles.mapTopTagText}>{mode === 'degraded' ? status.mapLabel : cached ? status.mapLabel : 'DEMO MAP NOT SAVED'}</Text>
       </View>
       <View style={styles.mapCompass}>
         <Text style={styles.compassNorth}>N</Text>
@@ -149,15 +176,16 @@ export default function DisasterNavigationApp() {
   const simulateMode = (nextMode) => {
     setMode(nextMode);
     setNotice('');
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#090D12" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: status.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor={status.background} />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.brandMark}>
-            <Text style={styles.brandMarkText}>N</Text>
+          <View style={[styles.brandMark, { backgroundColor: status.accentSoft, borderColor: status.border }]}>
+            <Text style={[styles.brandMarkText, { color: status.color }]}>N</Text>
           </View>
           <View style={styles.brandCopy}>
             <Text style={styles.brandName}>NORTHSTAR</Text>
@@ -166,26 +194,62 @@ export default function DisasterNavigationApp() {
           <Pill color={status.color}>{status.label}</Pill>
         </View>
 
-        <View style={styles.alertBanner}>
-          <View style={styles.alertIcon}>
-            <Text style={styles.alertIconText}>!</Text>
+        <View style={[styles.alertBanner, { backgroundColor: status.surface, borderColor: status.border }]}>
+          <View style={[styles.alertIcon, { backgroundColor: status.accentSoft }]}>
+            <Text style={[styles.alertIconText, { color: status.color }]}>!</Text>
           </View>
           <View style={styles.alertCopy}>
-            <Text style={styles.alertTitle}>SIMULATED FLOOD WARNING</Text>
-            <Text style={styles.alertDescription}>Move to higher ground. Avoid low-lying roads.</Text>
+            <Text style={[styles.alertTitle, { color: status.color }]}>{status.alertTitle}</Text>
+            <Text style={styles.alertDescription}>{status.alertDetail}</Text>
           </View>
-          <Text style={styles.alertChevron}>›</Text>
+          <Text style={[styles.alertChevron, { color: status.color }]}>›</Text>
         </View>
 
         <View style={styles.greeting}>
-          <Text style={styles.eyebrow}>YOUR SAFE EXIT</Text>
-          <Text style={styles.heroTitle}>A safer way out.</Text>
-          <Text style={styles.heroSubtitle}>Sample offline route · designed for low-signal conditions.</Text>
+          <Text style={[styles.eyebrow, { color: status.color }]}>{status.mapLabel}</Text>
+          <Text style={styles.heroTitle}>{status.hero}</Text>
+          <Text style={styles.heroSubtitle}>{status.subtitle}</Text>
         </View>
 
-        <View style={styles.routeSummary}>
-          <View style={styles.destinationIcon}>
-            <Text style={styles.destinationIconText}>+</Text>
+        {mode === 'connected' && (
+          <View style={styles.livePanel}>
+            <View style={styles.livePanelHeader}>
+              <View style={styles.liveIndicator} />
+              <Text style={styles.livePanelEyebrow}>LIVE RESPONSE · DEMO FEED</Text>
+              <Text style={styles.livePulse}>● LIVE</Text>
+            </View>
+            <View style={styles.liveMetrics}>
+              <View style={styles.liveMetric}>
+                <Text style={styles.liveMetricValue}>2</Text>
+                <Text style={styles.liveMetricLabel}>ROUTE CHECKS</Text>
+              </View>
+              <View style={styles.liveDivider} />
+              <View style={styles.liveMetric}>
+                <Text style={styles.liveMetricValue}>1</Text>
+                <Text style={styles.liveMetricLabel}>NEARBY ALERT</Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={() => setReporting(true)} style={styles.liveAction}>
+                <Text style={styles.liveActionText}>TAG HAZARD  +</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {mode === 'degraded' && (
+          <View style={[styles.degradedPanel, { backgroundColor: status.surface, borderColor: status.border }]}>
+            <Text style={[styles.degradedPanelTitle, { color: status.color }]}>DATA SAVER ON</Text>
+            <Text style={styles.degradedPanelText}>Satellite, radar and AR are paused to protect bandwidth.</Text>
+            <View style={styles.degradedSteps}>
+              <Text style={[styles.degradedStep, { color: status.color }]}>✓ ROUTE CACHED</Text>
+              <Text style={[styles.degradedStep, { color: status.color }]}>✓ TEXT REPORTS</Text>
+              <Text style={styles.degradedStepPending}>◷ RETRY WHEN ONLINE</Text>
+            </View>
+          </View>
+        )}
+
+        <View style={[styles.routeSummary, { backgroundColor: status.surface, borderColor: status.border }]}>
+          <View style={[styles.destinationIcon, { backgroundColor: status.accentSoft, borderColor: status.border }]}>
+            <Text style={[styles.destinationIconText, { color: status.color }]}>+</Text>
           </View>
           <View style={styles.destinationCopy}>
             <Text style={styles.destinationEyebrow}>DEMO DESTINATION · SHELTER</Text>
@@ -197,16 +261,26 @@ export default function DisasterNavigationApp() {
           </View>
         </View>
 
-        {mode !== 'survival' && <MapPreview mode={mode} hazards={hazards} cached={cached} />}
+        {mode !== 'survival' && <MapPreview mode={mode} hazards={hazards} cached={cached} status={status} />}
 
         {mode === 'survival' ? (
-          <View style={styles.survivalCard}>
-            <Text style={styles.survivalEyebrow}>NEXT TURN · SAMPLE POSITION</Text>
-            <Text style={styles.survivalInstruction}>↑  Head north on 5th Ave</Text>
+          <View style={[styles.survivalCard, { backgroundColor: status.surface, borderColor: status.border }]}>
+            <View style={styles.survivalTopline}>
+              <Text style={[styles.survivalEyebrow, { color: status.color }]}>NEXT TURN · SAVED ROUTE</Text>
+              <Text style={styles.survivalGps}>GPS · DEMO</Text>
+            </View>
+            <Text style={styles.survivalInstruction}>↑  Head north</Text>
+            <Text style={styles.survivalStreet}>on 5th Avenue</Text>
             <Text style={styles.survivalDistance}>Continue for 400 m</Text>
-            <View style={styles.survivalDivider} />
-            <Text style={styles.survivalWarning}>!  Avoid 6th Ave — flooding reported</Text>
-            <Text style={styles.coordinates}>DEMO GPS  40.7128° N, 74.0060° W</Text>
+            <View style={[styles.survivalDivider, { backgroundColor: status.border }]} />
+            <View style={[styles.survivalWarningBox, { backgroundColor: status.accentSoft }]}>
+              <Text style={[styles.survivalWarning, { color: status.color }]}>!  DO NOT TAKE 6TH AVENUE</Text>
+              <Text style={styles.survivalWarningDetail}>Flooding reported on this street.</Text>
+            </View>
+            <View style={styles.survivalFooter}>
+              <Text style={styles.coordinates}>40.7128° N, 74.0060° W</Text>
+              <Text style={styles.survivalFooterTag}>MAP PAUSED</Text>
+            </View>
           </View>
         ) : (
           <View style={styles.turnCard}>
@@ -222,7 +296,7 @@ export default function DisasterNavigationApp() {
           </View>
         )}
 
-        <View style={styles.metricsRow}>
+        {mode !== 'survival' && <View style={styles.metricsRow}>
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>BATTERY</Text>
             <View style={styles.metricValueRow}>
@@ -236,29 +310,39 @@ export default function DisasterNavigationApp() {
             <Text style={styles.metricLabel}>NETWORK</Text>
             <Text style={[styles.metricValue, { color: status.color }]}>{status.detail}</Text>
           </View>
-        </View>
+        </View>}
 
-        <View style={styles.cacheCard}>
-          <View style={styles.cacheIcon}>
-            <Text style={styles.cacheIconText}>{cached ? '✓' : '↓'}</Text>
+        {mode !== 'survival' ? (
+          <View style={[styles.cacheCard, { backgroundColor: status.surface, borderColor: status.border }]}>
+            <View style={styles.cacheIcon}>
+              <Text style={styles.cacheIconText}>{cached ? '✓' : '↓'}</Text>
+            </View>
+            <View style={styles.cacheCopy}>
+              <Text style={styles.cacheTitle}>{cached ? 'Demo offline map is ready' : 'Demo offline cache is inactive'}</Text>
+              <Text style={styles.cacheSubtitle}>
+                {cached ? 'Simulated 12 MB · Sample routes and shelters' : 'Toggle SAVE to restore the demo cache'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setCached((value) => !value);
+                setNotice(cached ? 'Demo offline cache marked unavailable' : 'Demo offline cache marked ready');
+              }}
+              style={styles.cacheAction}
+            >
+              <Text style={styles.cacheActionText}>{cached ? 'READY' : 'SAVE'}</Text>
+            </Pressable>
           </View>
-          <View style={styles.cacheCopy}>
-            <Text style={styles.cacheTitle}>{cached ? 'Demo offline map is ready' : 'Demo offline cache is inactive'}</Text>
-            <Text style={styles.cacheSubtitle}>
-              {cached ? 'Simulated 12 MB · Sample routes and shelters' : 'Toggle SAVE to restore the demo cache'}
+        ) : (
+          <View style={styles.powerCard}>
+            <Text style={styles.powerLabel}>POWER PRESERVATION</Text>
+            <Text style={styles.powerValue}>
+              14% <Text style={styles.powerValueCaption}>· CAMERA OFF · MAP OFF</Text>
             </Text>
+            <View style={styles.powerTrack}><View style={styles.powerFill} /></View>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setCached((value) => !value);
-              setNotice(cached ? 'Demo offline cache marked unavailable' : 'Demo offline cache marked ready');
-            }}
-            style={styles.cacheAction}
-          >
-            <Text style={styles.cacheActionText}>{cached ? 'READY' : 'SAVE'}</Text>
-          </Pressable>
-        </View>
+        )}
 
         <View onLayout={(event) => { reportsOffset.current = event.nativeEvent.layout.y; }}>
         <SectionTitle
@@ -344,12 +428,12 @@ export default function DisasterNavigationApp() {
           </View>
         </View>
 
-        <View style={styles.modePanel}>
+        <View style={[styles.modePanel, { backgroundColor: status.surface, borderColor: status.border }]}>
           <View style={styles.modeHeading}>
-            <Text style={styles.modeTitle}>DEMO · SYSTEM RESILIENCE</Text>
+            <Text style={[styles.modeTitle, { color: status.color }]}>DEMO · SYSTEM RESILIENCE</Text>
             <Text style={styles.modeHint}>{status.instruction}</Text>
           </View>
-          <View style={styles.modeButtons}>
+          <View style={[styles.modeButtons, { backgroundColor: status.background }]}>
             {[
               { key: 'connected', label: 'CONNECTED' },
               { key: 'degraded', label: '2G / EDGE' },
@@ -360,9 +444,9 @@ export default function DisasterNavigationApp() {
                 accessibilityState={{ selected: mode === item.key }}
                 key={item.key}
                 onPress={() => simulateMode(item.key)}
-                style={[styles.modeButton, mode === item.key && styles.modeButtonActive]}
+                style={[styles.modeButton, mode === item.key && { backgroundColor: status.accentSoft }]}
               >
-                <Text style={[styles.modeButtonText, mode === item.key && styles.modeButtonTextActive]}>
+                <Text style={[styles.modeButtonText, mode === item.key && { color: status.color }]}>
                   {item.label}
                 </Text>
               </Pressable>
@@ -423,9 +507,32 @@ const styles = StyleSheet.create({
   alertDescription: { color: '#C8A29F', fontSize: 10, marginTop: 4 },
   alertChevron: { color: '#D47E75', fontSize: 23, marginLeft: 6 },
   greeting: { marginBottom: 17 },
-  eyebrow: { color: '#6DDBAD', fontSize: 9, fontWeight: '800', letterSpacing: 1.8 },
   heroTitle: { color: '#F2F5F4', fontSize: 26, fontWeight: '800', letterSpacing: -0.5, marginTop: 7 },
   heroSubtitle: { color: '#8E9AA5', fontSize: 11, marginTop: 5 },
+  livePanel: {
+    backgroundColor: '#10231B', borderColor: '#2B6247', borderWidth: 1, borderRadius: 15,
+    padding: 13, marginBottom: 12,
+  },
+  livePanelHeader: { flexDirection: 'row', alignItems: 'center' },
+  liveIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#62D6A6', marginRight: 7 },
+  livePanelEyebrow: { color: '#96B6A4', fontSize: 8, fontWeight: '800', letterSpacing: 1, flex: 1 },
+  livePulse: { color: '#62D6A6', fontSize: 8, fontWeight: '900', letterSpacing: 0.7 },
+  liveMetrics: { flexDirection: 'row', alignItems: 'center', marginTop: 13 },
+  liveMetric: { flex: 1 },
+  liveMetricValue: { color: '#E7F7ED', fontSize: 20, fontWeight: '800' },
+  liveMetricLabel: { color: '#88A694', fontSize: 7, fontWeight: '800', letterSpacing: 0.7, marginTop: 3 },
+  liveDivider: { width: 1, height: 31, backgroundColor: '#31523E', marginRight: 14 },
+  liveAction: {
+    borderWidth: 1, borderColor: '#3B7758', backgroundColor: '#193A2B',
+    borderRadius: 9, paddingVertical: 9, paddingHorizontal: 10,
+  },
+  liveActionText: { color: '#9AE5BA', fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
+  degradedPanel: { borderWidth: 1, borderRadius: 13, padding: 12, marginBottom: 12 },
+  degradedPanelTitle: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  degradedPanelText: { color: '#B5AA96', fontSize: 10, marginTop: 5 },
+  degradedSteps: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  degradedStep: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginRight: 11, marginTop: 3 },
+  degradedStepPending: { color: '#A99573', fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginTop: 3 },
   routeSummary: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#121A20',
     borderWidth: 1, borderColor: '#202B32', borderRadius: 14, padding: 12, marginBottom: 12,
@@ -446,6 +553,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#293833', marginBottom: 12,
   },
   mapLowPower: { backgroundColor: '#11171A', borderColor: '#40382A' },
+  mapGridMuted: { borderColor: '#29251E' },
   mapGridHorizontal: {
     position: 'absolute', width: '130%', height: 70, left: -25, top: 81,
     borderTopWidth: 7, borderBottomWidth: 7, borderColor: '#293333', transform: [{ rotate: '-13deg' }],
@@ -523,16 +631,29 @@ const styles = StyleSheet.create({
   turnInstruction: { color: '#EDF1EF', fontSize: 12, fontWeight: '700', marginTop: 4 },
   turnSubtext: { color: '#E19A76', fontSize: 9, marginTop: 4 },
   turnArrow: { color: '#788680', fontSize: 22, paddingLeft: 5 },
-  survivalCard: {
-    backgroundColor: '#131716', borderWidth: 1, borderColor: '#493E2B',
-    borderRadius: 14, padding: 15, marginBottom: 12,
-  },
-  survivalEyebrow: { color: '#F3B95F', fontSize: 8, fontWeight: '800', letterSpacing: 1.3 },
-  survivalInstruction: { color: '#F3F5F2', fontSize: 17, fontWeight: '800', marginTop: 11 },
-  survivalDistance: { color: '#AAB2AC', fontSize: 11, marginTop: 4 },
+  survivalCard: { borderWidth: 1, borderRadius: 15, padding: 16, marginBottom: 12 },
+  survivalTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  survivalEyebrow: { fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  survivalGps: { color: '#92999A', fontSize: 7, fontWeight: '800', letterSpacing: 0.7 },
+  survivalInstruction: { color: '#FFFDFC', fontSize: 28, fontWeight: '900', letterSpacing: -0.5, marginTop: 18 },
+  survivalStreet: { color: '#F2F0EB', fontSize: 18, fontWeight: '700', marginTop: 2 },
+  survivalDistance: { color: '#ABA8A2', fontSize: 12, marginTop: 7 },
   survivalDivider: { height: 1, backgroundColor: '#35352D', marginVertical: 12 },
-  survivalWarning: { color: '#FF8C78', fontSize: 11, fontWeight: '700' },
-  coordinates: { color: '#7E8983', fontSize: 9, fontFamily: 'monospace', marginTop: 12 },
+  survivalWarningBox: { borderRadius: 10, padding: 10 },
+  survivalWarning: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  survivalWarningDetail: { color: '#D2AAA6', fontSize: 9, marginTop: 4 },
+  survivalFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  survivalFooterTag: { color: '#939494', fontSize: 7, fontWeight: '800', letterSpacing: 0.7 },
+  coordinates: { color: '#9CA3A0', fontSize: 9, fontFamily: 'monospace' },
+  powerCard: {
+    backgroundColor: '#141416', borderWidth: 1, borderColor: '#342728',
+    borderRadius: 12, padding: 12, marginBottom: 12,
+  },
+  powerLabel: { color: '#B7A2A1', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  powerValue: { color: '#FF716B', fontSize: 15, fontWeight: '900', marginTop: 7 },
+  powerValueCaption: { color: '#AD9696', fontSize: 7, fontWeight: '800' },
+  powerTrack: { height: 4, borderRadius: 3, backgroundColor: '#3A292B', marginTop: 9 },
+  powerFill: { width: '14%', height: 4, borderRadius: 3, backgroundColor: '#FF716B' },
   metricsRow: { flexDirection: 'row', marginHorizontal: -4, marginBottom: 10 },
   metricCard: {
     flex: 1, minHeight: 61, backgroundColor: '#11181D', borderWidth: 1, borderColor: '#202B31',
