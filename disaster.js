@@ -8,62 +8,53 @@ import {
   Text,
   View,
 } from 'react-native';
+import MapPreview from './src/components/map-preview';
+import {
+  describeWeatherCode,
+  findPlace,
+  getCurrentWeather,
+  getOfficialAlerts,
+  getRoute,
+} from './src/services/disaster-apis';
 
 const MODES = {
   connected: {
     label: 'CONNECTED',
-    detail: 'Live updates enabled',
     color: '#62D6A6',
-    battery: '82%',
-    instruction: 'Live conditions checked just now',
+    instruction: 'Live API and GPS status appears above',
     background: '#09120F',
     surface: '#142019',
     border: '#294337',
     accentSoft: '#19372B',
-    hero: 'Your route. In real time.',
-    subtitle: 'Live conditions are available. Stay alert and follow local guidance.',
-    alertTitle: 'LIVE FLOOD ADVISORY · DEMO',
-    alertDetail: 'Water rising near 6th Avenue. A safer route is ready.',
-    mapLabel: 'LIVE MAP · SAMPLE DATA',
+    hero: 'Get oriented. Find your way.',
+    alertTitle: 'LOCAL WEATHER ALERTS',
+    mapLabel: 'OPENSTREETMAP · LIVE TILES',
   },
   degraded: {
     label: 'LOW BANDWIDTH',
-    detail: 'Switching to offline maps',
     color: '#F3B95F',
-    battery: '24%',
-    instruction: 'Offline route ready · last synced 4 min ago',
+    instruction: 'Data-saver UI demo · live map calls still use data',
     background: '#151109',
     surface: '#211A0F',
     border: '#493922',
     accentSoft: '#392B15',
-    hero: 'Your route. Still offline.',
-    subtitle: 'Bandwidth is fading. Heavy layers are off; your local route remains.',
-    alertTitle: 'NETWORK IS DEGRADED',
-    alertDetail: 'Live updates paused. Last saved route is ready to follow.',
-    mapLabel: 'LOW-DATA VECTOR · CACHED',
+    hero: 'Your route. Low-data mode.',
+    alertTitle: 'LOW-BANDWIDTH MODE DEMO',
+    mapLabel: 'OPENSTREETMAP · ONLINE TILES',
   },
   survival: {
     label: 'SURVIVAL MODE',
-    detail: 'No network · low power',
     color: '#FF716B',
-    battery: '14%',
-    instruction: 'Map and camera paused to preserve battery',
+    instruction: 'Text mode demo · route details are not saved offline',
     background: '#080A0D',
     surface: '#141416',
     border: '#3B2728',
     accentSoft: '#3A1F20',
-    hero: 'Keep moving.',
-    subtitle: 'Text directions only. Screen and GPS are in low-power mode.',
-    alertTitle: 'NO SIGNAL · BATTERY CRITICAL',
-    alertDetail: 'Follow your last saved route. Avoid 6th Avenue.',
+    hero: 'Move safely. Stay alert.',
+    alertTitle: 'SURVIVAL MODE DEMO',
     mapLabel: 'TEXT-ONLY NAVIGATION',
   },
 };
-
-const INITIAL_HAZARDS = [
-  { type: 'FLOODING', street: '6th Avenue', age: '2 min ago', color: '#FF716B' },
-  { type: 'ROAD CLEAR', street: 'Market Street', age: '18 min ago', color: '#62D6A6' },
-];
 
 const HAZARD_TYPES = [
   { label: 'Flooding', icon: '≈', color: '#65BDF2' },
@@ -93,68 +84,140 @@ function SectionTitle({ eyebrow, title, right }) {
   );
 }
 
-function MapPreview({ mode, hazards, cached, status }) {
-  return (
-    <View style={[styles.map, { backgroundColor: status.background, borderColor: status.border }]}>
-      <View style={[styles.mapGridHorizontal, mode === 'degraded' && styles.mapGridMuted]} />
-      <View style={[styles.mapGridVertical, mode === 'degraded' && styles.mapGridMuted]} />
-      <View style={[styles.park, { top: 16, left: 18 }]}>
-        <Text style={styles.parkLabel}>RIVERSIDE PARK</Text>
-      </View>
-      <View style={[styles.park, styles.parkSecond]}>
-        <Text style={styles.parkLabel}>COMMUNITY GARDEN</Text>
-      </View>
-      <View style={[styles.street, styles.streetA]} />
-      <View style={[styles.street, styles.streetB]} />
-      <View style={[styles.street, styles.streetC]} />
-      <View style={[styles.street, styles.streetD]} />
-      <View style={[styles.street, styles.streetE]} />
-      <Text style={[styles.mapLabel, { top: 64, left: 20 }]}>PINE ST</Text>
-      <Text style={[styles.mapLabel, { top: 164, left: 22 }]}>MARKET ST</Text>
-      <Text style={[styles.mapLabel, { top: 63, right: 14 }]}>5TH AVE</Text>
-      <Text style={[styles.mapLabel, { top: 165, right: 14 }]}>6TH AVE</Text>
-      <View style={[styles.routeSegmentOne, { backgroundColor: status.color }]} />
-      <View style={[styles.routeSegmentTwo, { backgroundColor: status.color }]} />
-      <View style={[styles.routeSegmentThree, { backgroundColor: status.color }]} />
-      <View style={[styles.routeSegmentFour, { backgroundColor: status.color }]} />
-      <View style={[styles.currentLocation, { backgroundColor: `${status.color}33`, borderColor: status.color }]}>
-        <View style={[styles.currentLocationCore, { backgroundColor: status.color }]} />
-      </View>
-      <View style={styles.shelterMarker}>
-        <Text style={styles.shelterMarkerText}>+</Text>
-      </View>
-      {hazards.some((hazard) => hazard.type === 'FLOODING') && (
-        <View style={styles.hazardMarker}>
-          <Text style={styles.hazardMarkerText}>!</Text>
-        </View>
-      )}
-      <View style={styles.mapTopTag}>
-        <View style={[styles.pillDot, { backgroundColor: cached ? '#62D6A6' : '#F3B95F' }]} />
-        <Text style={styles.mapTopTagText}>{mode === 'degraded' ? status.mapLabel : cached ? status.mapLabel : 'DEMO MAP NOT SAVED'}</Text>
-      </View>
-      <View style={styles.mapCompass}>
-        <Text style={styles.compassNorth}>N</Text>
-        <Text style={styles.compassArrow}>↑</Text>
-      </View>
-      <View style={styles.mapScale}>
-        <View style={styles.mapScaleLine} />
-        <Text style={styles.mapScaleText}>200 m</Text>
-      </View>
-    </View>
-  );
+function formatDistance(meters) {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+function formatDuration(seconds) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}`;
 }
 
 export default function DisasterNavigationApp() {
   const [mode, setMode] = useState('connected');
-  const [hazards, setHazards] = useState(INITIAL_HAZARDS);
+  const [hazards, setHazards] = useState([]);
   const [reporting, setReporting] = useState(false);
-  const [cached, setCached] = useState(true);
   const [notice, setNotice] = useState('');
   const [activeTab, setActiveTab] = useState('navigate');
+  const [location, setLocation] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [weather, setWeather] = useState(null);
+  const [weatherError, setWeatherError] = useState('');
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [officialAlerts, setOfficialAlerts] = useState(null);
+  const [alertsError, setAlertsError] = useState('');
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState(null);
+  const [destinationQuery, setDestinationQuery] = useState('');
+  const [destination, setDestination] = useState(null);
+  const [route, setRoute] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [routeError, setRouteError] = useState('');
   const scrollRef = useRef(null);
   const reportsOffset = useRef(0);
   const sheltersOffset = useRef(0);
+  const requestId = useRef(0);
   const status = MODES[mode];
+  const activeAlert = officialAlerts?.alerts?.[0];
+  const alertTitle = activeAlert?.event || (
+    alertsLoading ? 'CHECKING LOCAL ALERTS' :
+      alertsError ? 'OFFICIAL ALERTS UNAVAILABLE' :
+        officialAlerts?.supported ? 'NO ACTIVE NWS ALERTS' :
+          location && !officialAlerts ? 'ALERT STATUS NOT CHECKED' :
+          location ? 'OUTSIDE U.S. ALERT COVERAGE' : 'LOCATE TO CHECK LOCAL ALERTS'
+  );
+  const alertDescription = activeAlert?.headline ||
+    activeAlert?.description?.split('\n').find(Boolean) ||
+    (alertsLoading ? 'Checking the National Weather Service for alerts at your location.' :
+      alertsError || (officialAlerts?.supported
+        ? 'National Weather Service reports no active alerts for this point.'
+        : location && !officialAlerts ? 'No official alert result is available for this location.'
+          : location ? 'National Weather Service alerts cover the contiguous United States only.'
+            : 'Allow browser location access to check official alerts.'));
+  const nextStep = route?.steps?.[0];
+
+  const locateUser = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationError('Location is unavailable in this browser. Try a browser with GPS support.');
+      return;
+    }
+
+    const currentRequest = requestId.current + 1;
+    requestId.current = currentRequest;
+    setIsLocating(true);
+    setLocationError('');
+    setAlertsError('');
+    setWeatherError('');
+    setOfficialAlerts(null);
+    setWeather(null);
+    setWeatherLoading(true);
+    setAlertsLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const position = {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+        };
+        setLocation(position);
+        setDestination(null);
+        setRoute(null);
+        setRouteError('');
+        setIsLocating(false);
+
+        Promise.allSettled([getCurrentWeather(position), getOfficialAlerts(position)]).then((results) => {
+          if (requestId.current !== currentRequest) return;
+          const [weatherResult, alertsResult] = results;
+          if (weatherResult.status === 'fulfilled') setWeather(weatherResult.value);
+          else setWeatherError(weatherResult.reason.message);
+          if (alertsResult.status === 'fulfilled') setOfficialAlerts(alertsResult.value);
+          else setAlertsError(alertsResult.reason.message);
+          setLastCheckedAt(Date.now());
+          setWeatherLoading(false);
+          setAlertsLoading(false);
+        });
+      },
+      (error) => {
+        if (requestId.current !== currentRequest) return;
+        const message = {
+          1: 'Location permission was denied. Allow location access in your browser settings.',
+          2: 'Your current location could not be determined. Try again where GPS is available.',
+          3: 'Location request timed out. Check browser permissions and try again.',
+        }[error.code] || 'The browser could not provide your location. Try again.';
+        setLocationError(message);
+        setIsLocating(false);
+        setWeatherLoading(false);
+        setAlertsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+    );
+  };
+
+  const searchDestination = async () => {
+    if (!location) {
+      setRouteError('Use Locate first so the route can start from your current position.');
+      return;
+    }
+    if (!destinationQuery.trim()) {
+      setRouteError('Enter a shelter, address, or landmark to find a route.');
+      return;
+    }
+
+    setIsSearching(true);
+    setRouteError('');
+    try {
+      const place = await findPlace(destinationQuery.trim(), location);
+      const result = await getRoute(location, place);
+      setDestination(place);
+      setRoute(result);
+    } catch (error) {
+      setRouteError(error.message);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const navigateTo = (tab) => {
     setActiveTab(tab);
@@ -166,11 +229,20 @@ export default function DisasterNavigationApp() {
 
   const reportHazard = (hazard) => {
     setHazards((current) => [
-      { type: hazard.label.toUpperCase(), street: 'Near your location', age: 'Just now', color: hazard.color },
+      {
+        type: hazard.label.toUpperCase(),
+        street: location
+          ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+          : 'No location attached',
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        age: 'Just now · session only',
+        color: hazard.color,
+      },
       ...current,
     ]);
     setReporting(false);
-    setNotice(`${hazard.label} added to this demo's local report list`);
+    setNotice(`${hazard.label} added to this session only; no report server is connected`);
   };
 
   const simulateMode = (nextMode) => {
@@ -189,7 +261,7 @@ export default function DisasterNavigationApp() {
           </View>
           <View style={styles.brandCopy}>
             <Text style={styles.brandName}>NORTHSTAR</Text>
-            <Text style={styles.brandDescriptor}>OFFLINE-FIRST EVACUATION</Text>
+            <Text style={styles.brandDescriptor}>RESILIENT NAVIGATION · PROTOTYPE</Text>
           </View>
           <Pill color={status.color}>{status.label}</Pill>
         </View>
@@ -199,8 +271,11 @@ export default function DisasterNavigationApp() {
             <Text style={[styles.alertIconText, { color: status.color }]}>!</Text>
           </View>
           <View style={styles.alertCopy}>
-            <Text style={[styles.alertTitle, { color: status.color }]}>{status.alertTitle}</Text>
-            <Text style={styles.alertDescription}>{status.alertDetail}</Text>
+            <Text style={[styles.alertTitle, { color: status.color }]}>{alertTitle}</Text>
+            <Text style={styles.alertDescription}>
+              {alertDescription}
+              {lastCheckedAt ? ` · Checked ${new Date(lastCheckedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+            </Text>
           </View>
           <Text style={[styles.alertChevron, { color: status.color }]}>›</Text>
         </View>
@@ -208,79 +283,160 @@ export default function DisasterNavigationApp() {
         <View style={styles.greeting}>
           <Text style={[styles.eyebrow, { color: status.color }]}>{status.mapLabel}</Text>
           <Text style={styles.heroTitle}>{status.hero}</Text>
-          <Text style={styles.heroSubtitle}>{status.subtitle}</Text>
+          <Text style={styles.heroSubtitle}>
+            {location
+              ? `${location.latitude.toFixed(4)}°, ${location.longitude.toFixed(4)}° · ±${Math.round(location.accuracy)} m`
+              : 'Locate yourself to load local weather, official alerts, and a real route.'}
+          </Text>
         </View>
 
         {mode === 'connected' && (
           <View style={styles.livePanel}>
             <View style={styles.livePanelHeader}>
               <View style={styles.liveIndicator} />
-              <Text style={styles.livePanelEyebrow}>LIVE RESPONSE · DEMO FEED</Text>
-              <Text style={styles.livePulse}>● LIVE</Text>
+              <Text style={styles.livePanelEyebrow}>LIVE CONDITIONS · PUBLIC FEEDS</Text>
+              <Text style={styles.livePulse}>{location ? 'GPS FIXED' : 'GPS NOT SET'}</Text>
             </View>
             <View style={styles.liveMetrics}>
               <View style={styles.liveMetric}>
-                <Text style={styles.liveMetricValue}>2</Text>
-                <Text style={styles.liveMetricLabel}>ROUTE CHECKS</Text>
+                <Text style={styles.liveMetricValue}>
+                  {weatherLoading ? '…' : weather ? `${Math.round(weather.current.temperature_2m)}°` : '—'}
+                </Text>
+                <Text style={styles.liveMetricLabel}>
+                  {weather ? describeWeatherCode(weather.current.weather_code).toUpperCase() : 'LOCAL WEATHER'}
+                </Text>
               </View>
               <View style={styles.liveDivider} />
               <View style={styles.liveMetric}>
-                <Text style={styles.liveMetricValue}>1</Text>
-                <Text style={styles.liveMetricLabel}>NEARBY ALERT</Text>
+                <Text style={styles.liveMetricValue}>{alertsLoading ? '…' : officialAlerts?.alerts?.length ?? '—'}</Text>
+                <Text style={styles.liveMetricLabel}>OFFICIAL ALERTS</Text>
               </View>
-              <Pressable accessibilityRole="button" onPress={() => setReporting(true)} style={styles.liveAction}>
-                <Text style={styles.liveActionText}>TAG HAZARD  +</Text>
+              <Pressable accessibilityRole="button" disabled={isLocating} onPress={locateUser} style={styles.liveAction}>
+                <Text style={styles.liveActionText}>{isLocating ? 'LOCATING…' : 'LOCATE  ⌖'}</Text>
               </Pressable>
             </View>
+            {weatherError || alertsError ? <Text style={styles.serviceError}>{weatherError || alertsError}</Text> : null}
           </View>
         )}
 
         {mode === 'degraded' && (
           <View style={[styles.degradedPanel, { backgroundColor: status.surface, borderColor: status.border }]}>
             <Text style={[styles.degradedPanelTitle, { color: status.color }]}>DATA SAVER ON</Text>
-            <Text style={styles.degradedPanelText}>Satellite, radar and AR are paused to protect bandwidth.</Text>
+            <Text style={styles.degradedPanelText}>Low-data mode reduces network use. Live map tiles and route lookup still need a connection.</Text>
             <View style={styles.degradedSteps}>
-              <Text style={[styles.degradedStep, { color: status.color }]}>✓ ROUTE CACHED</Text>
-              <Text style={[styles.degradedStep, { color: status.color }]}>✓ TEXT REPORTS</Text>
-              <Text style={styles.degradedStepPending}>◷ RETRY WHEN ONLINE</Text>
+              <Text style={[styles.degradedStep, { color: status.color }]}>{route ? '✓ ROUTE IN MEMORY' : '○ NO ROUTE YET'}</Text>
+              <Text style={[styles.degradedStep, { color: status.color }]}>✓ TEXT DIRECTIONS</Text>
+              <Text style={styles.degradedStepPending}>LIVE API CALLS NEED DATA</Text>
             </View>
           </View>
         )}
+
+        <View style={[styles.weatherCard, { backgroundColor: status.surface, borderColor: status.border }]}>
+          <View style={styles.weatherHeader}>
+            <Text style={styles.weatherTitle}>LOCAL WEATHER</Text>
+            <Text style={styles.weatherSource}>OPEN-METEO · ON REQUEST</Text>
+          </View>
+          {weatherLoading ? (
+            <Text style={styles.weatherDetail}>Fetching current conditions…</Text>
+          ) : weather ? (
+            <View style={styles.weatherData}>
+              <Text style={[styles.weatherTemperature, { color: status.color }]}>
+                {Math.round(weather.current.temperature_2m)}{weather.current_units.temperature_2m}
+              </Text>
+              <View style={styles.weatherCopy}>
+                <Text style={styles.weatherCondition}>{describeWeatherCode(weather.current.weather_code)}</Text>
+                <Text style={styles.weatherDetail}>
+                  Feels {Math.round(weather.current.apparent_temperature)}{weather.current_units.apparent_temperature}
+                  {' · '}Wind {Math.round(weather.current.wind_speed_10m)} {weather.current_units.wind_speed_10m}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={[styles.weatherDetail, weatherError && styles.serviceError]}>
+              {weatherError || 'Locate to load current weather for your area.'}
+            </Text>
+          )}
+        </View>
 
         <View style={[styles.routeSummary, { backgroundColor: status.surface, borderColor: status.border }]}>
           <View style={[styles.destinationIcon, { backgroundColor: status.accentSoft, borderColor: status.border }]}>
             <Text style={[styles.destinationIconText, { color: status.color }]}>+</Text>
           </View>
           <View style={styles.destinationCopy}>
-            <Text style={styles.destinationEyebrow}>DEMO DESTINATION · SHELTER</Text>
-            <Text style={styles.destinationName}>Riverside High School</Text>
+            <Text style={styles.destinationEyebrow}>{destination ? 'ROUTE DESTINATION · OSM' : 'DESTINATION · SEARCH A PLACE'}</Text>
+            <Text style={styles.destinationName}>{destination?.name || 'No destination selected'}</Text>
+            {route ? <Text style={styles.routeDistance}>{formatDistance(route.distance)} · OSRM driving route</Text> : null}
           </View>
           <View style={styles.eta}>
-            <Text style={styles.etaValue}>12</Text>
-            <Text style={styles.etaUnit}>MIN</Text>
+            <Text style={styles.etaValue}>{route ? formatDuration(route.duration) : '—'}</Text>
+            <Text style={styles.etaUnit}>{route ? 'ETA' : 'ROUTE'}</Text>
           </View>
         </View>
 
-        {mode !== 'survival' && <MapPreview mode={mode} hazards={hazards} cached={cached} status={status} />}
+        {mode !== 'survival' && (
+          <MapPreview
+            mode={mode}
+            status={status}
+            location={location}
+            hazards={hazards}
+            destination={destination}
+            route={route}
+            onLocate={locateUser}
+            onFindDestination={searchDestination}
+            destinationQuery={destinationQuery}
+            onChangeDestinationQuery={setDestinationQuery}
+            isLocating={isLocating}
+            isSearching={isSearching}
+            mapError={locationError || routeError}
+          />
+        )}
 
         {mode === 'survival' ? (
           <View style={[styles.survivalCard, { backgroundColor: status.surface, borderColor: status.border }]}>
             <View style={styles.survivalTopline}>
-              <Text style={[styles.survivalEyebrow, { color: status.color }]}>NEXT TURN · SAVED ROUTE</Text>
-              <Text style={styles.survivalGps}>GPS · DEMO</Text>
+              <Text style={[styles.survivalEyebrow, { color: status.color }]}>
+                {nextStep ? 'NEXT TURN · LIVE ROUTE' : 'TEXT DIRECTIONS'}
+              </Text>
+              <Text style={styles.survivalGps}>{location ? 'GPS · ACTIVE' : 'GPS · NOT SET'}</Text>
             </View>
-            <Text style={styles.survivalInstruction}>↑  Head north</Text>
-            <Text style={styles.survivalStreet}>on 5th Avenue</Text>
-            <Text style={styles.survivalDistance}>Continue for 400 m</Text>
+            <Text style={styles.survivalInstruction}>
+              {nextStep?.instruction || (location ? 'Choose a destination' : 'Find your location')}
+            </Text>
+            {nextStep ? (
+              <Text style={styles.survivalStreet}>{nextStep.street || destination?.name || 'Follow the route'}</Text>
+            ) : null}
+            <Text style={styles.survivalDistance}>
+              {nextStep
+                ? `Continue for ${formatDistance(nextStep.distance)}`
+                : location
+                  ? 'Enter a shelter, address, or landmark while online.'
+                  : 'Locate while online to prepare directions.'}
+            </Text>
             <View style={[styles.survivalDivider, { backgroundColor: status.border }]} />
-            <View style={[styles.survivalWarningBox, { backgroundColor: status.accentSoft }]}>
-              <Text style={[styles.survivalWarning, { color: status.color }]}>!  DO NOT TAKE 6TH AVENUE</Text>
-              <Text style={styles.survivalWarningDetail}>Flooding reported on this street.</Text>
-            </View>
+            {activeAlert ? (
+              <View style={[styles.survivalWarningBox, { backgroundColor: status.accentSoft }]}>
+                <Text style={[styles.survivalWarning, { color: status.color }]}>!  {activeAlert.event.toUpperCase()}</Text>
+                <Text style={styles.survivalWarningDetail}>{activeAlert.headline || activeAlert.description}</Text>
+              </View>
+            ) : (
+              <View style={[styles.survivalWarningBox, { backgroundColor: status.accentSoft }]}>
+                <Text style={[styles.survivalWarning, { color: status.color }]}>
+                  {alertsLoading ? 'CHECKING OFFICIAL ALERTS…' : 'VERIFY CONDITIONS'}
+                </Text>
+                <Text style={styles.survivalWarningDetail}>
+                  {alertsError || (officialAlerts?.supported
+                    ? 'NWS reports no active alerts at the last check. Confirm conditions locally.'
+                    : 'Live conditions and road closures are not available in text mode.')}
+                </Text>
+              </View>
+            )}
             <View style={styles.survivalFooter}>
-              <Text style={styles.coordinates}>40.7128° N, 74.0060° W</Text>
-              <Text style={styles.survivalFooterTag}>MAP PAUSED</Text>
+              <Text style={styles.coordinates}>
+                {location ? `${location.latitude.toFixed(4)}°, ${location.longitude.toFixed(4)}°` : 'Location unavailable'}
+              </Text>
+              <Text style={styles.survivalFooterTag}>TEXT MODE · {mode.toUpperCase()}</Text>
             </View>
+            {locationError ? <Text style={styles.serviceError}>{locationError}</Text> : null}
           </View>
         ) : (
           <View style={styles.turnCard}>
@@ -288,61 +444,23 @@ export default function DisasterNavigationApp() {
               <Text style={styles.turnIconText}>↰</Text>
             </View>
             <View style={styles.turnCopy}>
-              <Text style={styles.turnEyebrow}>NEXT TURN · IN 400 M</Text>
-              <Text style={styles.turnInstruction}>Turn left on Pine Street</Text>
-              <Text style={styles.turnSubtext}>Avoid 6th Avenue · flooding reported</Text>
+              <Text style={styles.turnEyebrow}>
+                {nextStep ? `NEXT TURN · ${formatDistance(nextStep.distance)}` : 'ROUTE · NOT SET'}
+              </Text>
+              <Text style={styles.turnInstruction}>{nextStep?.instruction || 'Locate and choose a destination'}</Text>
+              <Text style={styles.turnSubtext}>
+                {nextStep?.street || (route
+                  ? `Destination: ${destination.name}`
+                  : 'Routing is provided by OSRM and needs an internet connection.')}
+              </Text>
             </View>
             <Text style={styles.turnArrow}>›</Text>
           </View>
         )}
 
-        {mode !== 'survival' && <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>BATTERY</Text>
-            <View style={styles.metricValueRow}>
-              <Text style={[styles.metricValue, { color: status.color }]}>{status.battery}</Text>
-              <Text style={styles.metricSuffix}>
-                {mode === 'connected' ? ' · AVAILABLE' : mode === 'degraded' ? ' · CONSERVE' : ' · CRITICAL'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>NETWORK</Text>
-            <Text style={[styles.metricValue, { color: status.color }]}>{status.detail}</Text>
-          </View>
-        </View>}
-
-        {mode !== 'survival' ? (
-          <View style={[styles.cacheCard, { backgroundColor: status.surface, borderColor: status.border }]}>
-            <View style={styles.cacheIcon}>
-              <Text style={styles.cacheIconText}>{cached ? '✓' : '↓'}</Text>
-            </View>
-            <View style={styles.cacheCopy}>
-              <Text style={styles.cacheTitle}>{cached ? 'Demo offline map is ready' : 'Demo offline cache is inactive'}</Text>
-              <Text style={styles.cacheSubtitle}>
-                {cached ? 'Simulated 12 MB · Sample routes and shelters' : 'Toggle SAVE to restore the demo cache'}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setCached((value) => !value);
-                setNotice(cached ? 'Demo offline cache marked unavailable' : 'Demo offline cache marked ready');
-              }}
-              style={styles.cacheAction}
-            >
-              <Text style={styles.cacheActionText}>{cached ? 'READY' : 'SAVE'}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.powerCard}>
-            <Text style={styles.powerLabel}>POWER PRESERVATION</Text>
-            <Text style={styles.powerValue}>
-              14% <Text style={styles.powerValueCaption}>· CAMERA OFF · MAP OFF</Text>
-            </Text>
-            <View style={styles.powerTrack}><View style={styles.powerFill} /></View>
-          </View>
-        )}
+        <Text style={styles.serviceDisclaimer}>
+          Live data requires internet. Routes do not account for hazards unless reported by these sources.
+        </Text>
 
         <View onLayout={(event) => { reportsOffset.current = event.nativeEvent.layout.y; }}>
         <SectionTitle
@@ -375,7 +493,7 @@ export default function DisasterNavigationApp() {
                 <Text style={styles.dismissText}>CANCEL</Text>
               </Pressable>
             </View>
-            <Text style={styles.reportHint}>Choose a type · added to the local demo list (GPS and mesh are simulated)</Text>
+            <Text style={styles.reportHint}>This report stays in this page session; no server or nearby-device sync is connected.</Text>
             <View style={styles.hazardChoices}>
               {HAZARD_TYPES.map((hazard) => (
                 <Pressable
@@ -407,25 +525,23 @@ export default function DisasterNavigationApp() {
         </View>
 
         <View onLayout={(event) => { sheltersOffset.current = event.nativeEvent.layout.y; }}>
-          <SectionTitle eyebrow="SAFE DESTINATIONS" title="Nearby shelters" />
-          <View style={styles.shelterCard}>
-            <View style={styles.shelterCardIcon}><Text style={styles.shelterCardIconText}>+</Text></View>
-            <View style={styles.shelterCardCopy}>
-              <Text style={styles.shelterCardTitle}>Riverside High School</Text>
-              <Text style={styles.shelterCardSubtitle}>DEMO · 0.8 km · Accessibility unverified</Text>
+          <SectionTitle eyebrow="SAFE DESTINATIONS" title="Choose a destination" />
+          <Text style={styles.shelterCardSubtitle}>
+            Search the map for an official shelter or another place. Map search results are not verified shelter listings.
+          </Text>
+          {destination ? (
+            <View style={[styles.shelterCard, { backgroundColor: status.surface, borderColor: status.border }]}>
+              <View style={[styles.shelterCardIcon, { backgroundColor: status.accentSoft }]}>
+                <Text style={styles.shelterCardIconText}>+</Text>
+              </View>
+              <View style={styles.shelterCardCopy}>
+                <Text style={styles.shelterCardTitle}>{destination.name}</Text>
+                <Text style={styles.shelterCardSubtitle}>
+                  {route ? `${formatDistance(route.distance)} · about ${formatDuration(route.duration)} min` : 'Place selected · route unavailable'}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.shelterCardArrow}>›</Text>
-          </View>
-          <View style={styles.shelterCard}>
-            <View style={[styles.shelterCardIcon, styles.shelterCardIconAlt]}>
-              <Text style={styles.shelterCardIconText}>+</Text>
-            </View>
-            <View style={styles.shelterCardCopy}>
-              <Text style={styles.shelterCardTitle}>Northside Community Center</Text>
-              <Text style={styles.shelterCardSubtitle}>DEMO · 1.4 km · Capacity unverified</Text>
-            </View>
-            <Text style={styles.shelterCardArrow}>›</Text>
-          </View>
+          ) : null}
         </View>
 
         <View style={[styles.modePanel, { backgroundColor: status.surface, borderColor: status.border }]}>
@@ -454,7 +570,7 @@ export default function DisasterNavigationApp() {
           </View>
         </View>
 
-        <Text style={styles.footer}>Demo only · Verify live directions and shelter status with local authorities.</Text>
+        <Text style={styles.footer}>Prototype · Verify live directions, closures, alerts, and shelter status with local authorities.</Text>
       </ScrollView>
 
       <View style={styles.bottomBar}>
@@ -507,6 +623,7 @@ const styles = StyleSheet.create({
   alertDescription: { color: '#C8A29F', fontSize: 10, marginTop: 4 },
   alertChevron: { color: '#D47E75', fontSize: 23, marginLeft: 6 },
   greeting: { marginBottom: 17 },
+  eyebrow: { color: '#6DDBAD', fontSize: 9, fontWeight: '800', letterSpacing: 1.8 },
   heroTitle: { color: '#F2F5F4', fontSize: 26, fontWeight: '800', letterSpacing: -0.5, marginTop: 7 },
   heroSubtitle: { color: '#8E9AA5', fontSize: 11, marginTop: 5 },
   livePanel: {
@@ -527,12 +644,23 @@ const styles = StyleSheet.create({
     borderRadius: 9, paddingVertical: 9, paddingHorizontal: 10,
   },
   liveActionText: { color: '#9AE5BA', fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
+  serviceError: { color: '#FF9288', fontSize: 9, lineHeight: 14, marginTop: 8 },
   degradedPanel: { borderWidth: 1, borderRadius: 13, padding: 12, marginBottom: 12 },
   degradedPanelTitle: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   degradedPanelText: { color: '#B5AA96', fontSize: 10, marginTop: 5 },
   degradedSteps: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
   degradedStep: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginRight: 11, marginTop: 3 },
   degradedStepPending: { color: '#A99573', fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginTop: 3 },
+  weatherCard: { borderWidth: 1, borderRadius: 13, padding: 12, marginBottom: 12 },
+  weatherHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  weatherTitle: { color: '#9AA7A0', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  weatherSource: { color: '#76847C', fontSize: 7, fontWeight: '800', letterSpacing: 0.5 },
+  weatherData: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  weatherTemperature: { fontSize: 25, lineHeight: 30, fontWeight: '800', marginRight: 11 },
+  weatherCopy: { flex: 1 },
+  weatherCondition: { color: '#E6ECE8', fontSize: 11, fontWeight: '800' },
+  weatherDetail: { color: '#A3AEA8', fontSize: 9, lineHeight: 14, marginTop: 6 },
+  serviceDisclaimer: { color: '#A79981', fontSize: 9, lineHeight: 14, marginTop: 2, marginBottom: 8 },
   routeSummary: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#121A20',
     borderWidth: 1, borderColor: '#202B32', borderRadius: 14, padding: 12, marginBottom: 12,
@@ -545,78 +673,10 @@ const styles = StyleSheet.create({
   destinationCopy: { flex: 1, marginLeft: 10 },
   destinationEyebrow: { color: '#82908F', fontSize: 8, fontWeight: '700', letterSpacing: 0.9 },
   destinationName: { color: '#E5EBE8', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  routeDistance: { color: '#83968A', fontSize: 8, marginTop: 3 },
   eta: { alignItems: 'flex-end', flexDirection: 'row' },
   etaValue: { color: '#F2F5F4', fontSize: 24, fontWeight: '800', lineHeight: 27 },
   etaUnit: { color: '#97A39F', fontSize: 8, fontWeight: '800', marginLeft: 4, marginBottom: 4 },
-  map: {
-    height: 232, borderRadius: 16, overflow: 'hidden', backgroundColor: '#131E20',
-    borderWidth: 1, borderColor: '#293833', marginBottom: 12,
-  },
-  mapLowPower: { backgroundColor: '#11171A', borderColor: '#40382A' },
-  mapGridMuted: { borderColor: '#29251E' },
-  mapGridHorizontal: {
-    position: 'absolute', width: '130%', height: 70, left: -25, top: 81,
-    borderTopWidth: 7, borderBottomWidth: 7, borderColor: '#293333', transform: [{ rotate: '-13deg' }],
-  },
-  mapGridVertical: {
-    position: 'absolute', height: '130%', width: 65, top: -25, left: 179,
-    borderLeftWidth: 7, borderRightWidth: 7, borderColor: '#293333', transform: [{ rotate: '12deg' }],
-  },
-  park: {
-    position: 'absolute', width: 136, height: 58, borderRadius: 10, backgroundColor: '#1B382E',
-    borderWidth: 1, borderColor: '#2D5947', justifyContent: 'center', paddingLeft: 9,
-  },
-  parkSecond: { top: 150, left: 28, width: 100, height: 48, backgroundColor: '#1A302A' },
-  parkLabel: { color: '#67947D', fontSize: 7, fontWeight: '700', letterSpacing: 0.7 },
-  street: { position: 'absolute', backgroundColor: '#45504D', opacity: 0.8 },
-  streetA: { top: 87, left: -12, width: 390, height: 4, transform: [{ rotate: '-13deg' }] },
-  streetB: { top: 159, left: -8, width: 390, height: 4, transform: [{ rotate: '-13deg' }] },
-  streetC: { top: 4, left: 181, width: 4, height: 270, transform: [{ rotate: '12deg' }] },
-  streetD: { top: -9, left: 264, width: 4, height: 270, transform: [{ rotate: '12deg' }] },
-  streetE: { top: 207, left: 119, width: 4, height: 150, transform: [{ rotate: '12deg' }] },
-  mapLabel: { position: 'absolute', color: '#84908C', fontSize: 7, fontWeight: '800', letterSpacing: 1 },
-  routeSegmentOne: {
-    position: 'absolute', left: 75, top: 181, width: 4, height: 48, backgroundColor: '#65D6A5',
-    transform: [{ rotate: '12deg' }], borderRadius: 3,
-  },
-  routeSegmentTwo: {
-    position: 'absolute', left: 80, top: 161, width: 93, height: 4, backgroundColor: '#65D6A5',
-    transform: [{ rotate: '-13deg' }], borderRadius: 3,
-  },
-  routeSegmentThree: {
-    position: 'absolute', left: 168, top: 127, width: 4, height: 43, backgroundColor: '#65D6A5',
-    transform: [{ rotate: '12deg' }], borderRadius: 3,
-  },
-  routeSegmentFour: {
-    position: 'absolute', left: 165, top: 122, width: 91, height: 4, backgroundColor: '#65D6A5',
-    transform: [{ rotate: '-13deg' }], borderRadius: 3,
-  },
-  currentLocation: {
-    position: 'absolute', left: 65, top: 193, width: 23, height: 23, borderRadius: 12,
-    backgroundColor: '#65D6A533', borderWidth: 1, borderColor: '#65D6A5', alignItems: 'center', justifyContent: 'center',
-  },
-  currentLocationCore: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#72E0AF' },
-  shelterMarker: {
-    position: 'absolute', left: 248, top: 109, width: 24, height: 24, borderRadius: 8,
-    backgroundColor: '#D9F7E7', alignItems: 'center', justifyContent: 'center',
-  },
-  shelterMarkerText: { color: '#176344', fontSize: 19, fontWeight: '700', lineHeight: 22 },
-  hazardMarker: {
-    position: 'absolute', right: 54, top: 145, width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#612F2D', borderWidth: 1, borderColor: '#FF716B', alignItems: 'center', justifyContent: 'center',
-  },
-  hazardMarkerText: { color: '#FF8279', fontSize: 13, fontWeight: '900' },
-  mapTopTag: {
-    position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#0B1110E8', borderWidth: 1, borderColor: '#34443D', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 8,
-  },
-  mapTopTagText: { color: '#C2D2CA', fontSize: 7, fontWeight: '800', letterSpacing: 0.7 },
-  mapCompass: { position: 'absolute', top: 9, right: 11, alignItems: 'center' },
-  compassNorth: { color: '#AEBAB5', fontSize: 7, fontWeight: '800' },
-  compassArrow: { color: '#E0E9E4', fontSize: 15, fontWeight: '700', marginTop: -3 },
-  mapScale: { position: 'absolute', bottom: 10, right: 11, alignItems: 'center' },
-  mapScaleLine: { width: 27, height: 3, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#B7C3BD', borderTopWidth: 1 },
-  mapScaleText: { color: '#B7C3BD', fontSize: 7, marginTop: 2 },
   turnCard: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#121A20',
     borderWidth: 1, borderColor: '#253138', borderRadius: 14, padding: 12, marginBottom: 12,
@@ -645,38 +705,6 @@ const styles = StyleSheet.create({
   survivalFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   survivalFooterTag: { color: '#939494', fontSize: 7, fontWeight: '800', letterSpacing: 0.7 },
   coordinates: { color: '#9CA3A0', fontSize: 9, fontFamily: 'monospace' },
-  powerCard: {
-    backgroundColor: '#141416', borderWidth: 1, borderColor: '#342728',
-    borderRadius: 12, padding: 12, marginBottom: 12,
-  },
-  powerLabel: { color: '#B7A2A1', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  powerValue: { color: '#FF716B', fontSize: 15, fontWeight: '900', marginTop: 7 },
-  powerValueCaption: { color: '#AD9696', fontSize: 7, fontWeight: '800' },
-  powerTrack: { height: 4, borderRadius: 3, backgroundColor: '#3A292B', marginTop: 9 },
-  powerFill: { width: '14%', height: 4, borderRadius: 3, backgroundColor: '#FF716B' },
-  metricsRow: { flexDirection: 'row', marginHorizontal: -4, marginBottom: 10 },
-  metricCard: {
-    flex: 1, minHeight: 61, backgroundColor: '#11181D', borderWidth: 1, borderColor: '#202B31',
-    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 11, marginHorizontal: 4,
-  },
-  metricLabel: { color: '#77838A', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
-  metricValueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 6 },
-  metricValue: { fontSize: 14, fontWeight: '800' },
-  metricSuffix: { color: '#8B9695', fontSize: 7, fontWeight: '700' },
-  cacheCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#111A18',
-    borderWidth: 1, borderColor: '#263B33', borderRadius: 13, padding: 11, marginBottom: 24,
-  },
-  cacheIcon: {
-    width: 29, height: 29, borderRadius: 9, backgroundColor: '#1A352B',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cacheIconText: { color: '#78D8AD', fontSize: 14, fontWeight: '800' },
-  cacheCopy: { flex: 1, marginLeft: 9 },
-  cacheTitle: { color: '#DCE7E1', fontSize: 10, fontWeight: '700' },
-  cacheSubtitle: { color: '#85938A', fontSize: 8, marginTop: 4 },
-  cacheAction: { paddingVertical: 7, paddingHorizontal: 9 },
-  cacheActionText: { color: '#78D8AD', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 },
   sectionTitle: { color: '#EDF1EF', fontSize: 17, fontWeight: '800', marginTop: 5 },
   reportCount: { color: '#7C8987', fontSize: 8, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
@@ -721,12 +749,10 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 10, backgroundColor: '#19362C',
     alignItems: 'center', justifyContent: 'center',
   },
-  shelterCardIconAlt: { backgroundColor: '#1C2E36' },
   shelterCardIconText: { color: '#7ADBB0', fontSize: 19, fontWeight: '700', lineHeight: 22 },
   shelterCardCopy: { flex: 1, marginLeft: 9 },
   shelterCardTitle: { color: '#DCE5E0', fontSize: 10, fontWeight: '800' },
   shelterCardSubtitle: { color: '#81908A', fontSize: 8, marginTop: 4 },
-  shelterCardArrow: { color: '#81908A', fontSize: 21, paddingHorizontal: 5 },
   modePanel: {
     backgroundColor: '#10161B', borderWidth: 1, borderColor: '#222D33',
     borderRadius: 13, padding: 12, marginTop: 18,
@@ -736,15 +762,12 @@ const styles = StyleSheet.create({
   modeHint: { color: '#6F7A7D', fontSize: 8, marginTop: 4 },
   modeButtons: { flexDirection: 'row', backgroundColor: '#0B1014', borderRadius: 9, padding: 3 },
   modeButton: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 7, minHeight: 32 },
-  modeButtonActive: { backgroundColor: '#23352D' },
   modeButtonText: { color: '#74807F', fontSize: 8, fontWeight: '800', letterSpacing: 0.4 },
-  modeButtonTextActive: { color: '#8BE0B7' },
   footer: { color: '#748078', textAlign: 'center', fontSize: 9, marginTop: 18, marginBottom: 10 },
   bottomBar: {
     height: 57, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     backgroundColor: '#0D1317', borderTopWidth: 1, borderTopColor: '#20292D',
   },
-  bottomBarActive: { alignItems: 'center', minWidth: 72 },
   bottomBarActiveIcon: { color: '#79DDB0', fontSize: 18, lineHeight: 20 },
   bottomBarActiveLabel: { color: '#79DDB0', fontSize: 7, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
   bottomBarItem: { alignItems: 'center', minWidth: 72 },
