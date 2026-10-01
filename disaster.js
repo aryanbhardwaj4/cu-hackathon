@@ -123,17 +123,17 @@ export default function DisasterNavigationApp() {
   const alertTitle = activeAlert?.event || (
     alertsLoading ? 'CHECKING LOCAL ALERTS' :
       alertsError ? 'OFFICIAL ALERTS UNAVAILABLE' :
-        officialAlerts?.supported ? 'NO ACTIVE NWS ALERTS' :
+        officialAlerts?.supported ? 'NO ACTIVE IMD ALERTS' :
           location && !officialAlerts ? 'ALERT STATUS NOT CHECKED' :
-          location ? 'OUTSIDE U.S. ALERT COVERAGE' : 'LOCATE TO CHECK LOCAL ALERTS'
+          location ? 'OUTSIDE INDIA ALERT COVERAGE' : 'LOCATE TO CHECK LOCAL ALERTS'
   );
   const alertDescription = activeAlert?.headline ||
     activeAlert?.description?.split('\n').find(Boolean) ||
-    (alertsLoading ? 'Checking the National Weather Service for alerts at your location.' :
+    (alertsLoading ? 'Checking the India Meteorological Department for alerts at your location.' :
       alertsError || (officialAlerts?.supported
-        ? 'National Weather Service reports no active alerts for this point.'
+        ? 'India Meteorological Department reports no active alerts for this point.'
         : location && !officialAlerts ? 'No official alert result is available for this location.'
-          : location ? 'National Weather Service alerts cover the contiguous United States only.'
+          : location ? 'India Meteorological Department alerts cover India only.'
             : 'Allow browser location access to check official alerts.'));
   const nextStep = route?.steps?.[0];
 

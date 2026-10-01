@@ -136,15 +136,15 @@ export async function getCurrentWeather(location) {
 
 export async function getOfficialAlerts(location) {
   const { latitude, longitude } = location;
-  const isContiguousUnitedStates =
-    latitude >= 24.4 && latitude <= 49.4 && longitude >= -125 && longitude <= -66.9;
+  const isIndia =
+    latitude >= 6.5 && latitude <= 37.5 && longitude >= 68.0 && longitude <= 97.5;
 
-  if (!isContiguousUnitedStates) {
+  if (!isIndia) {
     return { supported: false, alerts: [] };
   }
 
   const params = new URLSearchParams({ point: `${latitude},${longitude}` });
-  const result = await getJson(`${NWS_ALERTS_URL}?${params}`, 'U.S. National Weather Service alerts');
+  const result = await getJson(`${NWS_ALERTS_URL}?${params}`, 'India Meteorological Department alerts');
 
   return {
     supported: true,
