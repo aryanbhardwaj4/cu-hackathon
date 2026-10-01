@@ -2,6 +2,7 @@ const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving';
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active';
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 async function getJson(url, service) {
   let response;
@@ -158,4 +159,80 @@ export function describeWeatherCode(code) {
   if (code >= 85 && code <= 86) return 'Snow showers';
   if (code >= 95) return 'Thunderstorm';
   return 'Weather unavailable';
+}
+
+export async function getNearbyShelters(location, radiusMeters = 5000) {
+  const { latitude, longitude } = location;
+  // Query OSM for emergency shelters, hospitals, and community centres nearby
+  const query = `
+    [out:json][timeout:20];
+    (
+      node["amenity"="shelter"](around:${radiusMeters},${latitude},${longitude});
+      node["amenity"="hospital"](around:${radiusMeters},${latitude},${longitude});
+      node["amenity"="community_centre"](around:${radiusMeters},${latitude},${longitude});
+      node["emergency"="shelter"](around:${radiusMeters},${latitude},${longitude});
+      way["amenity"="shelter"](around:${radiusMeters},${latitude},${longitude});
+      way["amenity"="hospital"](around:${radiusMeters},${latitude},${longitude});
+      way["amenity"="community_centre"](around:${radiusMeters},${latitude},${longitude});
+      way["emergency"="shelter"](around:${radiusMeters},${latitude},${longitude});
+    );
+    out center 20;
+  `;
+
+  let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    response = await fetch(OVERPASS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('Shelter search timed out. Try again.');
+    throw new Error('Shelter search could not be reached. Check your connection.');
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) throw new Error(`Shelter search returned HTTP ${response.status}.`);
+
+  const data = await response.json();
+
+  const typeLabel = (tags) => {
+    if (tags?.emergency === 'shelter' || tags?.amenity === 'shelter') return 'Emergency Shelter';
+    if (tags?.amenity === 'hospital') return 'Hospital';
+    if (tags?.amenity === 'community_centre') return 'Community Centre';
+    return 'Shelter';
+  };
+
+  const toRad = (d) => (d * Math.PI) / 180;
+  const haversine = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  return (data.elements || [])
+    .map((el) => {
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      if (!lat || !lon) return null;
+      return {
+        id: el.id,
+        name: el.tags?.name || typeLabel(el.tags),
+        type: typeLabel(el.tags),
+        latitude: lat,
+        longitude: lon,
+        distance: Math.round(haversine(latitude, longitude, lat, lon)),
+        address: el.tags?.['addr:full'] || el.tags?.['addr:street'] || '',
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 10);
 }

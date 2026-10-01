@@ -13,6 +13,7 @@ import {
   describeWeatherCode,
   findPlace,
   getCurrentWeather,
+  getNearbyShelters,
   getOfficialAlerts,
   getRoute,
 } from './src/services/disaster-apis';
@@ -114,6 +115,9 @@ export default function DisasterNavigationApp() {
   const [route, setRoute] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [nearbyShelters, setNearbyShelters] = useState([]);
+  const [sheltersLoading, setSheltersLoading] = useState(false);
+  const [sheltersError, setSheltersError] = useState('');
   const scrollRef = useRef(null);
   const reportsOffset = useRef(0);
   const sheltersOffset = useRef(0);
@@ -149,10 +153,13 @@ export default function DisasterNavigationApp() {
     setLocationError('');
     setAlertsError('');
     setWeatherError('');
+    setSheltersError('');
     setOfficialAlerts(null);
     setWeather(null);
+    setNearbyShelters([]);
     setWeatherLoading(true);
     setAlertsLoading(true);
+    setSheltersLoading(true);
 
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
@@ -167,16 +174,23 @@ export default function DisasterNavigationApp() {
         setRouteError('');
         setIsLocating(false);
 
-        Promise.allSettled([getCurrentWeather(position), getOfficialAlerts(position)]).then((results) => {
+        Promise.allSettled([
+          getCurrentWeather(position),
+          getOfficialAlerts(position),
+          getNearbyShelters(position),
+        ]).then((results) => {
           if (requestId.current !== currentRequest) return;
-          const [weatherResult, alertsResult] = results;
+          const [weatherResult, alertsResult, sheltersResult] = results;
           if (weatherResult.status === 'fulfilled') setWeather(weatherResult.value);
           else setWeatherError(weatherResult.reason.message);
           if (alertsResult.status === 'fulfilled') setOfficialAlerts(alertsResult.value);
           else setAlertsError(alertsResult.reason.message);
+          if (sheltersResult.status === 'fulfilled') setNearbyShelters(sheltersResult.value);
+          else setSheltersError(sheltersResult.reason.message);
           setLastCheckedAt(Date.now());
           setWeatherLoading(false);
           setAlertsLoading(false);
+          setSheltersLoading(false);
         });
       },
       (error) => {
@@ -190,6 +204,7 @@ export default function DisasterNavigationApp() {
         setIsLocating(false);
         setWeatherLoading(false);
         setAlertsLoading(false);
+        setSheltersLoading(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
     );
@@ -525,9 +540,45 @@ export default function DisasterNavigationApp() {
         </View>
 
         <View onLayout={(event) => { sheltersOffset.current = event.nativeEvent.layout.y; }}>
-          <SectionTitle eyebrow="SAFE DESTINATIONS" title="Choose a destination" />
+          <SectionTitle eyebrow="SAFE DESTINATIONS" title="Nearby Shelters" />
+
+          {/* Nearby Shelters from OpenStreetMap */}
+          {!location ? (
+            <Text style={styles.shelterCardSubtitle}>
+              Use Locate to find shelters near your current position.
+            </Text>
+          ) : sheltersLoading ? (
+            <Text style={styles.shelterCardSubtitle}>Searching for shelters nearby…</Text>
+          ) : sheltersError ? (
+            <Text style={[styles.shelterCardSubtitle, { color: '#FF716B' }]}>{sheltersError}</Text>
+          ) : nearbyShelters.length === 0 ? (
+            <Text style={styles.shelterCardSubtitle}>
+              No shelters found within 5 km. Try searching for a destination below.
+            </Text>
+          ) : (
+            nearbyShelters.map((shelter) => (
+              <View key={shelter.id} style={[styles.shelterCard, { backgroundColor: status.surface, borderColor: status.border }]}>
+                <View style={[styles.shelterCardIcon, { backgroundColor: status.accentSoft }]}>
+                  <Text style={styles.shelterCardIconText}>
+                    {shelter.type === 'Hospital' ? '✚' : '⌂'}
+                  </Text>
+                </View>
+                <View style={styles.shelterCardCopy}>
+                  <Text style={styles.shelterCardTitle}>{shelter.name.toUpperCase()}</Text>
+                  <Text style={styles.shelterCardSubtitle}>
+                    {shelter.type}
+                    {shelter.address ? ` · ${shelter.address}` : ''}
+                    {' · '}{shelter.distance < 1000 ? `${shelter.distance} m away` : `${(shelter.distance / 1000).toFixed(1)} km away`}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+
+          {/* Manual destination search */}
+          <SectionTitle eyebrow="OR SEARCH" title="Choose a destination" />
           <Text style={styles.shelterCardSubtitle}>
-            Search the map for an official shelter or another place. Map search results are not verified shelter listings.
+            Search for a shelter, address, or landmark. Results are not verified shelter listings.
           </Text>
           {destination ? (
             <View style={[styles.shelterCard, { backgroundColor: status.surface, borderColor: status.border }]}>
