@@ -161,45 +161,60 @@ export function describeWeatherCode(code) {
   return 'Weather unavailable';
 }
 
+// Multiple public Overpass endpoints — tried in order on failure
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
+
 export async function getNearbyShelters(location, radiusMeters = 5000) {
   const { latitude, longitude } = location;
-  // Query OSM for emergency shelters, hospitals, and community centres nearby
-  const query = `
-    [out:json][timeout:20];
-    (
-      node["amenity"="shelter"](around:${radiusMeters},${latitude},${longitude});
-      node["amenity"="hospital"](around:${radiusMeters},${latitude},${longitude});
-      node["amenity"="community_centre"](around:${radiusMeters},${latitude},${longitude});
-      node["emergency"="shelter"](around:${radiusMeters},${latitude},${longitude});
-      way["amenity"="shelter"](around:${radiusMeters},${latitude},${longitude});
-      way["amenity"="hospital"](around:${radiusMeters},${latitude},${longitude});
-      way["amenity"="community_centre"](around:${radiusMeters},${latitude},${longitude});
-      way["emergency"="shelter"](around:${radiusMeters},${latitude},${longitude});
-    );
-    out center 20;
-  `;
 
-  let response;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  try {
-    response = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(query)}`,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error.name === 'AbortError') throw new Error('Shelter search timed out. Try again.');
-    throw new Error('Shelter search could not be reached. Check your connection.');
-  } finally {
-    clearTimeout(timeout);
+  // Simplified union query — fewer statement types = faster server processing
+  const query =
+    `[out:json][timeout:25];` +
+    `(` +
+    `nwr["amenity"="shelter"](around:${radiusMeters},${latitude},${longitude});` +
+    `nwr["emergency"="shelter"](around:${radiusMeters},${latitude},${longitude});` +
+    `nwr["amenity"="hospital"](around:${radiusMeters},${latitude},${longitude});` +
+    `nwr["amenity"="community_centre"](around:${radiusMeters},${latitude},${longitude});` +
+    `);` +
+    `out center 15;`;
+
+  const body = `data=${encodeURIComponent(query)}`;
+
+  let lastError;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!response.ok) {
+        lastError = new Error(`Shelter search returned HTTP ${response.status}.`);
+        continue; // try next endpoint
+      }
+      const data = await response.json();
+      return parseShelters(data, latitude, longitude);
+    } catch (err) {
+      clearTimeout(timer);
+      lastError = err.name === 'AbortError'
+        ? new Error('Shelter search timed out.')
+        : new Error('Shelter search could not be reached.');
+      // try next endpoint
+    }
   }
 
-  if (!response.ok) throw new Error(`Shelter search returned HTTP ${response.status}.`);
+  throw lastError || new Error('All shelter search endpoints failed. Try again shortly.');
+}
 
-  const data = await response.json();
-
+function parseShelters(data, latitude, longitude) {
   const typeLabel = (tags) => {
     if (tags?.emergency === 'shelter' || tags?.amenity === 'shelter') return 'Emergency Shelter';
     if (tags?.amenity === 'hospital') return 'Hospital';
