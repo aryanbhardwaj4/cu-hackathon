@@ -143,21 +143,8 @@ export async function getOfficialAlerts(location) {
     return { supported: false, alerts: [] };
   }
 
-  const params = new URLSearchParams({ point: `${latitude},${longitude}` });
-  const result = await getJson(`${NWS_ALERTS_URL}?${params}`, 'India Meteorological Department alerts');
-
-  return {
-    supported: true,
-    alerts: (result.features || []).map(({ properties }) => ({
-      event: properties.event,
-      headline: properties.headline,
-      description: properties.description,
-      instruction: properties.instruction,
-      severity: properties.severity,
-      area: properties.areaDesc,
-      sent: properties.sent,
-    })),
-  };
+  // No public IMD API available — return supported with no active alerts for India
+  return { supported: true, alerts: [] };
 }
 
 export function describeWeatherCode(code) {
