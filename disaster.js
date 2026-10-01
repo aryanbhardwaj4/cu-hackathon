@@ -394,6 +394,7 @@ export default function DisasterNavigationApp() {
             status={status}
             location={location}
             hazards={hazards}
+            shelters={nearbyShelters}
             destination={destination}
             route={route}
             onLocate={locateUser}

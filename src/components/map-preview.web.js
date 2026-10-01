@@ -9,6 +9,7 @@ export default function MapPreview({
   status,
   location,
   hazards,
+  shelters = [],
   destination,
   route,
   onLocate,
@@ -26,6 +27,7 @@ export default function MapPreview({
   const destinationMarkerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const hazardMarkersRef = useRef([]);
+  const shelterMarkersRef = useRef([]);
   const [mapReady, setMapReady] = useState(false);
   const [loadError, setLoadError] = useState('');
 
@@ -138,6 +140,48 @@ export default function MapPreview({
         fillOpacity: 1,
       }).addTo(map).bindPopup(`${hazard.type} · session-only report`));
   }, [hazards, mapReady]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!map || !L || !mapReady) return;
+
+    // Clear old shelter markers
+    shelterMarkersRef.current.forEach((m) => m.remove());
+
+    shelterMarkersRef.current = shelters
+      .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+      .map((shelter) => {
+        const isHospital = shelter.type === 'Hospital';
+        const color = isHospital ? '#FF716B' : '#62D6A6';
+        const distLabel = shelter.distance < 1000
+          ? `${shelter.distance} m away`
+          : `${(shelter.distance / 1000).toFixed(1)} km away`;
+
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="
+            background:${color};
+            color:#fff;
+            border:2px solid #fff;
+            border-radius:50%;
+            width:22px;height:22px;
+            display:flex;align-items:center;justify-content:center;
+            font-size:13px;font-weight:900;
+            box-shadow:0 2px 6px rgba(0,0,0,0.5);
+          ">${isHospital ? '✚' : '⌂'}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+          popupAnchor: [0, -14],
+        });
+
+        return L.marker([shelter.latitude, shelter.longitude], { icon })
+          .addTo(map)
+          .bindPopup(
+            `<b>${shelter.name}</b><br/>${shelter.type}${shelter.address ? '<br/>' + shelter.address : ''}<br/>${distLabel}`,
+          );
+      });
+  }, [shelters, mapReady]);
 
   return (
     <View style={[styles.card, { backgroundColor: status.surface, borderColor: status.border }]}>
